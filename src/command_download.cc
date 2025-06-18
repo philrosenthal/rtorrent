@@ -353,9 +353,8 @@ f_multicall(core::Download* download, const torrent::Object::list_type& args) {
   bool use_regex = true;
 
   if (args.front().is_list())
-    std::transform(args.front().as_list().begin(), args.front().as_list().end(),
-                   std::back_inserter(regex_list),
-                   std::bind(&torrent::Object::as_string_c, std::placeholders::_1));
+    for (const auto& o : args.front().as_list())
+      regex_list.push_back(o.as_string_c());
   else if (args.front().is_string() && !args.front().as_string().empty())
     regex_list.push_back(args.front().as_string());
   else
@@ -363,8 +362,7 @@ f_multicall(core::Download* download, const torrent::Object::list_type& args) {
 
   for (torrent::FileList::const_iterator itr = download->file_list()->begin(), last = download->file_list()->end(); itr != last; itr++) {
     if (use_regex &&
-        std::find_if(regex_list.begin(), regex_list.end(),
-                     std::bind(&rak::regex::operator(), std::placeholders::_1, (*itr)->path()->as_string())) == regex_list.end())
+        std::none_of(regex_list.begin(), regex_list.end(), [itr](const auto& r) { return r((*itr)->path()->as_string()); }))
       continue;
 
     torrent::Object::list_type& row = result.insert(result.end(), torrent::Object::create_list())->as_list();
@@ -558,7 +556,7 @@ d_list_push_back_unique(core::Download* download, const torrent::Object& rawArgs
   const torrent::Object& args = (rawArgs.is_list() && !rawArgs.as_list().empty()) ? rawArgs.as_list().front() : rawArgs;
   torrent::Object::list_type& list = download_get_variable(download, first_key, second_key).as_list();
 
-  if (std::find_if(list.begin(), list.end(), [args](const torrent::Object& obj) { return torrent::object_equal(obj, args); }) == list.end())
+  if (std::none_of(list.begin(), list.end(), [args](const torrent::Object& obj) { return torrent::object_equal(obj, args); }))
     list.push_back(rawArgs);
 
   return torrent::Object();
@@ -569,7 +567,7 @@ d_list_has(core::Download* download, const torrent::Object& rawArgs, const char*
   const torrent::Object& args = (rawArgs.is_list() && !rawArgs.as_list().empty()) ? rawArgs.as_list().front() : rawArgs;
   torrent::Object::list_type& list = download_get_variable(download, first_key, second_key).as_list();
 
-  return (int64_t)(std::find_if(list.begin(), list.end(), [args](const torrent::Object& obj) { return torrent::object_equal(obj, args); }) != list.end());
+  return (int64_t)(std::any_of(list.begin(), list.end(), [args](const auto& obj) { return torrent::object_equal(obj, args); }));
 }
 
 torrent::Object
